@@ -5,6 +5,7 @@ import { readSecretFromFile } from "../../acp/secret-file.js";
 import type {
   GatewayAuthMode,
   GatewayBindMode,
+  GatewayProfileMode,
   GatewayTailscaleMode,
 } from "../../config/config.js";
 import {
@@ -48,6 +49,7 @@ import {
 
 type GatewayRunOpts = {
   port?: unknown;
+  profile?: unknown;
   bind?: unknown;
   token?: unknown;
   auth?: unknown;
@@ -72,6 +74,7 @@ const gatewayLog = createSubsystemLogger("gateway");
 
 const GATEWAY_RUN_VALUE_KEYS = [
   "port",
+  "profile",
   "bind",
   "token",
   "auth",
@@ -103,6 +106,7 @@ const GATEWAY_AUTH_MODES: readonly GatewayAuthMode[] = [
   "password",
   "trusted-proxy",
 ];
+const GATEWAY_PROFILE_MODES: readonly GatewayProfileMode[] = ["default", "api-only"];
 const GATEWAY_TAILSCALE_MODES: readonly GatewayTailscaleMode[] = ["off", "serve", "funnel"];
 
 function warnInlinePasswordFlag() {
@@ -151,7 +155,13 @@ function formatModeErrorList<T extends string>(modes: readonly T[]): string {
   return `${quoted.slice(0, -1).join(", ")}, or ${quoted[quoted.length - 1]}`;
 }
 
-function maybeLogPendingControlUiBuild(cfg: ReturnType<typeof loadConfig>): void {
+function maybeLogPendingControlUiBuild(
+  cfg: ReturnType<typeof loadConfig>,
+  profile?: GatewayProfileMode,
+): void {
+  if (profile === "api-only") {
+    return;
+  }
   if (cfg.gateway?.controlUi?.enabled === false) {
     return;
   }
@@ -292,7 +302,28 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
 
   gatewayLog.info("loading configuration…");
   const cfg = loadConfig();
-  maybeLogPendingControlUiBuild(cfg);
+  const profileRaw = toOptionString(opts.profile);
+  const profileFromCli = parseEnumOption(profileRaw, GATEWAY_PROFILE_MODES);
+  if (profileRaw && !profileFromCli) {
+    defaultRuntime.error(`Invalid --profile (use ${formatModeErrorList(GATEWAY_PROFILE_MODES)})`);
+    defaultRuntime.exit(1);
+    return;
+  }
+  const profileFromEnvRaw = normalizeOptionalLowercaseString(process.env.OPENCLAW_GATEWAY_PROFILE);
+  const profileFromEnv = parseEnumOption(profileFromEnvRaw, GATEWAY_PROFILE_MODES);
+  if (profileFromEnvRaw && !profileFromEnv) {
+    defaultRuntime.error(
+      `Invalid OPENCLAW_GATEWAY_PROFILE value \"${profileFromEnvRaw}\" (use ${formatModeErrorList(GATEWAY_PROFILE_MODES)})`,
+    );
+    defaultRuntime.exit(1);
+    return;
+  }
+  const profileFromConfig = parseEnumOption(cfg.gateway?.profile, GATEWAY_PROFILE_MODES);
+  const profile = profileFromCli ?? profileFromEnv ?? profileFromConfig ?? "default";
+  if (profile === "api-only") {
+    gatewayLog.info("profile=api-only active: disabling Control UI and channel auto-start");
+  }
+  maybeLogPendingControlUiBuild(cfg, profile);
   const portOverride = parsePort(opts.port);
   if (opts.port !== undefined && portOverride === null) {
     defaultRuntime.error("Invalid port");
@@ -535,6 +566,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
       lockPort: port,
       start: async ({ startupStartedAt } = {}) =>
         await startGatewayServer(port, {
+          profile,
           bind,
           auth: authOverride,
           tailscale: tailscaleOverride,
@@ -590,6 +622,10 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
 export function addGatewayRunCommand(cmd: Command): Command {
   return cmd
     .option("--port <port>", "Port for the gateway WebSocket")
+    .option(
+      "--profile <mode>",
+      `Gateway runtime profile (${formatModeChoices(GATEWAY_PROFILE_MODES)})`,
+    )
     .option(
       "--bind <mode>",
       'Bind mode ("loopback"|"lan"|"tailnet"|"auto"|"custom"). Defaults to config gateway.bind (or loopback).',

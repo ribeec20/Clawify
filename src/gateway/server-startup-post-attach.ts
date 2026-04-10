@@ -84,6 +84,7 @@ export async function startGatewaySidecars(params: {
   defaultWorkspaceDir: string;
   deps: CliDeps;
   startChannels: () => Promise<void>;
+  startChannelsEnabled: boolean;
   log: { warn: (msg: string) => void };
   logHooks: {
     info: (msg: string) => void;
@@ -157,6 +158,7 @@ export async function startGatewaySidecars(params: {
   }
 
   const skipChannels =
+    !params.startChannelsEnabled ||
     isTruthyEnvValue(process.env.OPENCLAW_SKIP_CHANNELS) ||
     isTruthyEnvValue(process.env.OPENCLAW_SKIP_PROVIDERS);
   if (!skipChannels) {
@@ -171,7 +173,7 @@ export async function startGatewaySidecars(params: {
     }
   } else {
     params.logChannels.info(
-      "skipping channel start (OPENCLAW_SKIP_CHANNELS=1 or OPENCLAW_SKIP_PROVIDERS=1)",
+      "skipping channel start (api-only profile, OPENCLAW_SKIP_CHANNELS=1, or OPENCLAW_SKIP_PROVIDERS=1)",
     );
   }
 
@@ -257,6 +259,7 @@ export async function startGatewayPostAttachRuntime(params: {
   defaultWorkspaceDir: string;
   deps: CliDeps;
   startChannels: () => Promise<void>;
+  startChannelsEnabled: boolean;
   logHooks: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -308,6 +311,7 @@ export async function startGatewayPostAttachRuntime(params: {
       defaultWorkspaceDir: params.defaultWorkspaceDir,
       deps: params.deps,
       startChannels: params.startChannels,
+      startChannelsEnabled: params.startChannelsEnabled,
       log: params.log,
       logHooks: params.logHooks,
       logChannels: params.logChannels,

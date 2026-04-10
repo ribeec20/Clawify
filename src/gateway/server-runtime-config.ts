@@ -1,6 +1,7 @@
 import type {
   GatewayAuthConfig,
   GatewayBindMode,
+  GatewayProfileMode,
   GatewayTailscaleConfig,
   loadConfig,
 } from "../config/config.js";
@@ -18,10 +19,13 @@ import {
   resolveGatewayBindHost,
 } from "./net.js";
 import { mergeGatewayTailscaleConfig } from "./startup-auth.js";
+import { normalizeOptionalLowercaseString } from "../shared/string-coerce.js";
 
 export type GatewayRuntimeConfig = {
   bindHost: string;
+  profile: GatewayProfileMode;
   controlUiEnabled: boolean;
+  channelsStartupEnabled: boolean;
   openAiChatCompletionsEnabled: boolean;
   openAiChatCompletionsConfig?: import("../config/types.gateway.js").GatewayHttpChatCompletionsConfig;
   openResponsesEnabled: boolean;
@@ -37,11 +41,21 @@ export type GatewayRuntimeConfig = {
   canvasHostEnabled: boolean;
 };
 
+function parseGatewayProfileMode(raw: string | undefined): GatewayProfileMode | undefined {
+  const normalized = normalizeOptionalLowercaseString(raw);
+  if (normalized === "default" || normalized === "api-only") {
+    return normalized;
+  }
+  return undefined;
+}
+
 export async function resolveGatewayRuntimeConfig(params: {
   cfg: ReturnType<typeof loadConfig>;
   port: number;
   bind?: GatewayBindMode;
   host?: string;
+  profile?: GatewayProfileMode;
+  startChannelsEnabled?: boolean;
   controlUiEnabled?: boolean;
   openAiChatCompletionsEnabled?: boolean;
   openResponsesEnabled?: boolean;
@@ -80,8 +94,18 @@ export async function resolveGatewayRuntimeConfig(params: {
       );
     }
   }
-  const controlUiEnabled =
+  const profile =
+    params.profile ??
+    parseGatewayProfileMode(process.env.OPENCLAW_GATEWAY_PROFILE) ??
+    params.cfg.gateway?.profile ??
+    "default";
+  const isApiOnlyProfile = profile === "api-only";
+  const controlUiEnabledConfig =
     params.controlUiEnabled ?? params.cfg.gateway?.controlUi?.enabled ?? true;
+  const controlUiEnabled = isApiOnlyProfile ? false : controlUiEnabledConfig;
+  const channelsStartupEnabledConfig =
+    params.startChannelsEnabled ?? params.cfg.gateway?.channels?.enabled ?? true;
+  const channelsStartupEnabled = isApiOnlyProfile ? false : channelsStartupEnabledConfig;
   const openAiChatCompletionsConfig = params.cfg.gateway?.http?.endpoints?.chatCompletions;
   const openAiChatCompletionsEnabled =
     params.openAiChatCompletionsEnabled ?? openAiChatCompletionsConfig?.enabled ?? false;
@@ -164,7 +188,9 @@ export async function resolveGatewayRuntimeConfig(params: {
 
   return {
     bindHost,
+    profile,
     controlUiEnabled,
+    channelsStartupEnabled,
     openAiChatCompletionsEnabled,
     openAiChatCompletionsConfig: openAiChatCompletionsConfig
       ? { ...openAiChatCompletionsConfig, enabled: openAiChatCompletionsEnabled }

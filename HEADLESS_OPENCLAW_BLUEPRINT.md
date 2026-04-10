@@ -73,15 +73,18 @@ extensions/
 ## 4) API Surface (Minimal)
 
 ### Session endpoints
+
 - POST /v1/sessions
 - GET /v1/sessions/:id
 
 ### Task endpoints
+
 - POST /v1/tasks
 - GET /v1/tasks/:id
 - POST /v1/tasks/:id/cancel
 
 ### Event streaming
+
 - GET /v1/sessions/:id/events
 
 ## 5) Example Request Flow
@@ -99,6 +102,7 @@ POST /v1/tasks
 ## 6) Pairing-Safe Policy Profile (Reduced Friction)
 
 Keep this simple and explicit:
+
 - auth.mode: "pairing"
 - prompts.enabled: false
 - filesystem.root: workspace-only

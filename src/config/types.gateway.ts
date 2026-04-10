@@ -377,9 +377,18 @@ export type GatewayWebchatConfig = {
   chatHistoryMaxChars?: number;
 };
 
+export type GatewayProfileMode = "default" | "api-only";
+
+export type GatewayChannelsConfig = {
+  /** If false, skip channel startup during gateway boot (default: true). */
+  enabled?: boolean;
+};
+
 export type GatewayConfig = {
   /** Single multiplexed port for Gateway WS + HTTP (default: 18789). */
   port?: number;
+  /** Runtime profile. Use "api-only" for a headless gateway-first server. */
+  profile?: GatewayProfileMode;
   /**
    * Explicit gateway mode. When set to "remote", local gateway start is disabled.
    * When set to "local", the CLI may start the gateway locally.
@@ -397,6 +406,7 @@ export type GatewayConfig = {
   bind?: GatewayBindMode;
   /** Custom IP address for bind="custom" mode. Fallback: 0.0.0.0. */
   customBindHost?: string;
+  channels?: GatewayChannelsConfig;
   controlUi?: GatewayControlUiConfig;
   auth?: GatewayAuthConfig;
   tailscale?: GatewayTailscaleConfig;

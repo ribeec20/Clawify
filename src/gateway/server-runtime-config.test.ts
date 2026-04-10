@@ -399,4 +399,74 @@ describe("resolveGatewayRuntimeConfig", () => {
       expect(result.strictTransportSecurityHeader).toBe(expected);
     });
   });
+
+  describe("api-only profile", () => {
+    const originalGatewayProfile = process.env.OPENCLAW_GATEWAY_PROFILE;
+
+    beforeEach(() => {
+      delete process.env.OPENCLAW_GATEWAY_PROFILE;
+    });
+
+    afterEach(() => {
+      if (originalGatewayProfile === undefined) {
+        delete process.env.OPENCLAW_GATEWAY_PROFILE;
+      } else {
+        process.env.OPENCLAW_GATEWAY_PROFILE = originalGatewayProfile;
+      }
+    });
+
+    it("forces control UI and channel startup off when config profile is api-only", async () => {
+      const result = await resolveGatewayRuntimeConfig({
+        cfg: {
+          gateway: {
+            bind: "loopback",
+            auth: { mode: "none" },
+            profile: "api-only",
+            controlUi: { enabled: true },
+            channels: { enabled: true },
+          },
+        },
+        port: 18789,
+      });
+
+      expect(result.profile).toBe("api-only");
+      expect(result.controlUiEnabled).toBe(false);
+      expect(result.channelsStartupEnabled).toBe(false);
+    });
+
+    it("lets profile override from params take precedence", async () => {
+      const result = await resolveGatewayRuntimeConfig({
+        cfg: {
+          gateway: {
+            bind: "loopback",
+            auth: { mode: "none" },
+            profile: "default",
+          },
+        },
+        profile: "api-only",
+        port: 18789,
+      });
+
+      expect(result.profile).toBe("api-only");
+      expect(result.controlUiEnabled).toBe(false);
+      expect(result.channelsStartupEnabled).toBe(false);
+    });
+
+    it("uses OPENCLAW_GATEWAY_PROFILE when params are not provided", async () => {
+      process.env.OPENCLAW_GATEWAY_PROFILE = "api-only";
+      const result = await resolveGatewayRuntimeConfig({
+        cfg: {
+          gateway: {
+            bind: "loopback",
+            auth: { mode: "none" },
+          },
+        },
+        port: 18789,
+      });
+
+      expect(result.profile).toBe("api-only");
+      expect(result.controlUiEnabled).toBe(false);
+      expect(result.channelsStartupEnabled).toBe(false);
+    });
+  });
 });

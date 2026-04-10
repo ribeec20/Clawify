@@ -144,6 +144,8 @@ export type GatewayServer = {
 };
 
 export type GatewayServerOptions = {
+  /** Gateway runtime profile. "api-only" disables UI + channel startup. */
+  profile?: import("../config/config.js").GatewayProfileMode;
   /**
    * Bind address policy for the Gateway WebSocket/HTTP server.
    * - loopback: 127.0.0.1
@@ -157,6 +159,11 @@ export type GatewayServerOptions = {
    * Prefer `bind` unless you really need a specific address.
    */
   host?: string;
+  /**
+   * If false, skip channel startup during gateway boot.
+   * Default: config `gateway.channels.enabled` (or true when absent).
+   */
+  startChannelsEnabled?: boolean;
   /**
    * If false, do not serve the browser Control UI.
    * Default: config `gateway.controlUi.enabled` (or true when absent).
@@ -315,6 +322,8 @@ export async function startGatewayServer(
     port,
     bind: opts.bind,
     host: opts.host,
+    profile: opts.profile,
+    startChannelsEnabled: opts.startChannelsEnabled,
     controlUiEnabled: opts.controlUiEnabled,
     openAiChatCompletionsEnabled: opts.openAiChatCompletionsEnabled,
     openResponsesEnabled: opts.openResponsesEnabled,
@@ -324,6 +333,7 @@ export async function startGatewayServer(
   const {
     bindHost,
     controlUiEnabled,
+    channelsStartupEnabled,
     openAiChatCompletionsEnabled,
     openAiChatCompletionsConfig,
     openResponsesEnabled,
@@ -751,6 +761,7 @@ export async function startGatewayServer(
       defaultWorkspaceDir,
       deps,
       startChannels,
+      startChannelsEnabled,
       logHooks,
       logChannels,
       unavailableGatewayMethods,

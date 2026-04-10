@@ -665,6 +665,7 @@ export const OpenClawSchema = z
       .object({
         port: z.number().int().positive().optional(),
         mode: z.union([z.literal("local"), z.literal("remote")]).optional(),
+        profile: z.union([z.literal("default"), z.literal("api-only")]).optional(),
         bind: z
           .union([
             z.literal("auto"),
@@ -675,6 +676,12 @@ export const OpenClawSchema = z
           ])
           .optional(),
         customBindHost: z.string().optional(),
+        channels: z
+          .object({
+            enabled: z.boolean().optional(),
+          })
+          .strict()
+          .optional(),
         controlUi: z
           .object({
             enabled: z.boolean().optional(),

@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "pre-commit: checking for conflict markers"
+pnpm check:no-conflict-markers
+
+echo "pre-commit: checking formatting"
+pnpm format:check

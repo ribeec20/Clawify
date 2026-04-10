@@ -143,6 +143,7 @@ describe("startGatewayPostAttachRuntime", () => {
       defaultWorkspaceDir: "/tmp/openclaw-workspace",
       deps: {} as never,
       startChannels: vi.fn(async () => undefined),
+      startChannelsEnabled: true,
       logHooks: {
         info: vi.fn(),
         warn: vi.fn(),
