@@ -37,8 +37,6 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      PNPM_CONFIG_MINIMUM_RELEASE_AGE: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -54,7 +52,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --config.minimumReleaseAge=0 --no-frozen-lockfile
 
       - name: Check conflict markers
         run: pnpm check:no-conflict-markers
