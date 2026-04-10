@@ -3,7 +3,28 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - ".github/workflows/ci.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "src/gateway/**"
+      - "src/cli/gateway-cli/**"
+      - "src/config/**"
+      - "scripts/**"
+      - "test/**"
+      - "vitest.gateway.config.ts"
   pull_request:
+    paths:
+      - ".github/workflows/ci.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "src/gateway/**"
+      - "src/cli/gateway-cli/**"
+      - "src/config/**"
+      - "scripts/**"
+      - "test/**"
+      - "vitest.gateway.config.ts"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,13 +55,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check
-        env:
-          OPENCLAW_LOCAL_CHECK: "0"
-        run: pnpm check
+      - name: Check conflict markers
+        run: pnpm check:no-conflict-markers
 
-      - name: Test
-        run: pnpm test
+      - name: Check formatting
+        run: pnpm format:check
 
-      - name: Build
-        run: pnpm build
+      - name: Gateway tests
+        run: pnpm test:gateway
