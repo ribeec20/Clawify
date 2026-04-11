@@ -4,6 +4,38 @@ This is a simple picture of how OpenClaw runs as a reusable backend API by strip
 
 The guiding constraint is upstream compatibility: keep this repo as close to standard OpenClaw as possible so upstream changes can still be applied with low merge pain. Headless work should add thin profile, API, and management seams around the existing Gateway/runtime instead of forking core behavior.
 
+## 0) Clone-to-API Quickstart
+
+For local clone usage (no global install required):
+
+```bash
+git clone https://github.com/openclaw/openclaw.git
+cd openclaw
+pnpm install
+pnpm build
+export OPENCLAW_GATEWAY_TOKEN="replace-with-strong-token"
+pnpm openclaw serve --bind loopback --port 18789 --auth token --token "$OPENCLAW_GATEWAY_TOKEN"
+```
+
+PowerShell token setup:
+
+```powershell
+$env:OPENCLAW_GATEWAY_TOKEN="replace-with-strong-token"
+pnpm openclaw serve --bind loopback --port 18789 --auth token --token $env:OPENCLAW_GATEWAY_TOKEN
+```
+
+Smoke checks:
+
+```bash
+curl -sS http://127.0.0.1:18789/health
+curl -sS http://127.0.0.1:18789/v1/management \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
+```
+
+Management/API connection docs:
+
+- `docs/gateway/api.md`
+
 ## 1) High-Level Shape
 
 ```text

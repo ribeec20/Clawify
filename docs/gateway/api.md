@@ -8,19 +8,59 @@ title: "Client Connection API"
 
 # Client Connection API
 
-This page is the quick map for connecting applications to OpenClaw.
+This page is the single setup and usage path for API-first deployments.
 
-Use it when you want a separate frontend or service that talks to OpenClaw over API only.
+Use it when you want a separate frontend or service that talks to OpenClaw over HTTP or WebSocket only.
 
-## Start the headless API runtime
+## Quick start from a clone
 
-Run OpenClaw in API-focused mode:
+### 1) Clone and install
+
+Requirements:
+
+- Node.js `22.14+`
+- `pnpm`
 
 ```bash
-openclaw serve --port 18789
+git clone https://github.com/openclaw/openclaw.git
+cd openclaw
+pnpm install
+pnpm build
 ```
 
-`openclaw serve` starts Gateway in `api-only` profile and enables the management API surface.
+### 2) Start in API mode (`serve`)
+
+Pick a gateway token and start the API server.
+
+macOS/Linux:
+
+```bash
+export OPENCLAW_GATEWAY_TOKEN="replace-with-strong-token"
+pnpm openclaw serve --bind loopback --port 18789 --auth token --token "$OPENCLAW_GATEWAY_TOKEN"
+```
+
+PowerShell:
+
+```powershell
+$env:OPENCLAW_GATEWAY_TOKEN="replace-with-strong-token"
+pnpm openclaw serve --bind loopback --port 18789 --auth token --token $env:OPENCLAW_GATEWAY_TOKEN
+```
+
+Notes:
+
+- `pnpm openclaw` runs the CLI directly from your clone.
+- If you installed a binary package, you can run `openclaw serve` (or `clawify serve` when using the clawify package alias).
+- `serve` runs Gateway in `api-only` profile and enables the management API.
+
+### 3) Verify API is up
+
+```bash
+curl -sS http://127.0.0.1:18789/health
+curl -sS http://127.0.0.1:18789/v1/management \
+  -H "Authorization: Bearer $OPENCLAW_GATEWAY_TOKEN"
+```
+
+The management root endpoint (`GET /v1/management`) returns the currently available management routes for that runtime.
 
 ## API surfaces
 
@@ -33,6 +73,10 @@ Use this for chat clients and SDKs that already speak OpenAI-style endpoints:
 - `POST /v1/embeddings`
 - `POST /v1/chat/completions`
 - `POST /v1/responses`
+
+Base URL example:
+
+- `http://127.0.0.1:18789`
 
 These endpoints are documented here:
 
@@ -81,9 +125,10 @@ Protocol details:
 
 All client surfaces use Gateway auth.
 
-Common setup:
+Common token setup:
 
-- `Authorization: Bearer <token-or-password>` for shared-secret modes
+- Start server with `--auth token --token <token>`
+- Send `Authorization: Bearer <token>` on requests
 - trusted proxy identity headers for `trusted-proxy` mode
 
 See full auth setup:
@@ -100,10 +145,29 @@ curl -sS http://127.0.0.1:18789/v1/models \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
+### Run an OpenAI responses request
+
+```bash
+curl -sS http://127.0.0.1:18789/v1/responses \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model":"openai/gpt-5.4",
+    "input":"Say hello from OpenClaw API mode."
+  }'
+```
+
 ### Read management status
 
 ```bash
 curl -sS http://127.0.0.1:18789/v1/management/status \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Inspect route inventory
+
+```bash
+curl -sS http://127.0.0.1:18789/v1/management \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -114,11 +178,31 @@ curl -N http://127.0.0.1:18789/v1/management/events \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
+### Read config schema then apply config
+
+```bash
+curl -sS http://127.0.0.1:18789/v1/management/config/schema \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+curl -sS http://127.0.0.1:18789/v1/management/config/apply \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"patch":{"prompts":{"enabled":false}}}'
+```
+
+Management responses use a stable envelope:
+
+- `ok`
+- `result`
+- `error.code`
+- `error.message`
+- `error.details`
+
 ## Recommended client architecture
 
 For fully separated frontends:
 
-1. Run `openclaw serve` on a private network boundary.
+1. Run `serve` on a private network boundary.
 2. Put your own frontend or API gateway in front of OpenClaw.
 3. Use OpenAI-compatible endpoints for model/chat UX.
 4. Use `/v1/management/*` for admin and runtime controls.
