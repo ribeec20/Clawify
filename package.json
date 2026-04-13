@@ -1,6 +1,6 @@
 {
   "name": "@ribeec20/clawify",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Multi-channel AI gateway with extensible messaging integrations",
   "keywords": [],
   "homepage": "https://github.com/openclaw/openclaw#readme",
@@ -1252,6 +1252,7 @@
     "test:docker:qr": "bash scripts/e2e/qr-import-docker.sh",
     "test:e2e": "node scripts/run-vitest.mjs run --config vitest.e2e.config.ts",
     "test:e2e:openshell": "OPENCLAW_E2E_OPENSHELL=1 node scripts/run-vitest.mjs run --config vitest.e2e.config.ts test/openshell-sandbox.e2e.test.ts",
+    "test:e2e:ollama": "node scripts/run-vitest.mjs run --config vitest.e2e-ollama.config.ts",
     "test:extension": "node scripts/test-extension.mjs",
     "test:extensions": "node scripts/run-vitest.mjs run --config vitest.extensions.config.ts",
     "test:extensions:batch": "node scripts/test-extension-batch.mjs",
