@@ -2,6 +2,7 @@
 summary: "SDK reference for app-side Clawify instance and user configuration over the management API"
 read_when:
   - Embedding OpenClaw or clawify into an app backend
+  - Registering custom HTTP tools the agent can call
   - Enabling or disabling user tool access in code
   - Registering custom MCP servers per instance or user
 title: "Clawify SDK"
@@ -115,6 +116,72 @@ Remove a server:
 
 ```ts
 await user.removeMcpServer("docs");
+```
+
+## Custom tools
+
+Register HTTP-backed tools that the agent can call during a session. When the LLM decides to use the tool, the gateway POSTs the arguments to your endpoint and returns the response body to the model.
+
+### Register a custom tool
+
+```ts
+await instance.registerCustomTool("lookup_customer", {
+  name: "lookup_customer",
+  description: "Look up a customer by ID and return their profile.",
+  parameters: {
+    type: "object",
+    properties: {
+      customerId: { type: "string", description: "The customer ID" },
+    },
+    required: ["customerId"],
+  },
+  target: {
+    url: "https://api.example.com/customers/lookup",
+    method: "POST",
+    auth: { type: "bearer", token: "secret" },
+    timeoutMs: 10000,
+  },
+});
+```
+
+Target options:
+
+- `url` (required): HTTP endpoint to call
+- `method`: `POST` (default), `PUT`, or `PATCH`
+- `headers`: additional request headers
+- `auth`: `{ type: "bearer", token }` or `{ type: "header", name, value }`
+- `timeoutMs`: request timeout in milliseconds (default: 30000)
+
+Set `removable: false` to prevent user-level deny lists from removing the tool.
+
+### List custom tools
+
+```ts
+const tools = await instance.listCustomTools();
+// { lookup_customer: { name: "lookup_customer", ... } }
+```
+
+### Remove a custom tool
+
+```ts
+await instance.removeCustomTool("lookup_customer");
+```
+
+### Use custom tools in a session
+
+Custom tools are available when the session has an `instanceId`. Pass it when prompting:
+
+```ts
+const result = await user.prompt("Look up customer C-1234", {
+  model: "ollama/qwen3.5:9b",
+});
+```
+
+Or when creating a session directly via the management API:
+
+```ts
+POST /v1/management/sessions/create
+{ "model": "ollama/qwen3.5:9b", "instanceId": "my-app" }
 ```
 
 ## Prompt the agent from your app
