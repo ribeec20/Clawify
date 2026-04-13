@@ -9,10 +9,10 @@ title: "Ansible"
 
 # Ansible Installation
 
-Deploy OpenClaw to production servers with **[openclaw-ansible](https://github.com/openclaw/openclaw-ansible)** -- an automated installer with security-first architecture.
+Deploy OpenClaw to production servers with **[openclaw-ansible](https://github.com/ribeec20/ClawIFY-ansible)** -- an automated installer with security-first architecture.
 
 <Info>
-The [openclaw-ansible](https://github.com/openclaw/openclaw-ansible) repo is the source of truth for Ansible deployment. This page is a quick overview.
+The [openclaw-ansible](https://github.com/ribeec20/ClawIFY-ansible) repo is the source of truth for Ansible deployment. This page is a quick overview.
 </Info>
 
 ## Prerequisites
@@ -132,7 +132,7 @@ If you prefer manual control over the automation:
   </Step>
   <Step title="Clone the repository">
     ```bash
-    git clone https://github.com/openclaw/openclaw-ansible.git
+    git clone https://github.com/ribeec20/ClawIFY-ansible.git
     cd openclaw-ansible
     ```
   </Step>
@@ -218,13 +218,13 @@ This is idempotent and safe to run multiple times.
 
 For detailed security architecture and troubleshooting, see the openclaw-ansible repo:
 
-- [Security Architecture](https://github.com/openclaw/openclaw-ansible/blob/main/docs/security.md)
-- [Technical Details](https://github.com/openclaw/openclaw-ansible/blob/main/docs/architecture.md)
-- [Troubleshooting Guide](https://github.com/openclaw/openclaw-ansible/blob/main/docs/troubleshooting.md)
+- [Security Architecture](https://github.com/ribeec20/ClawIFY-ansible/blob/main/docs/security.md)
+- [Technical Details](https://github.com/ribeec20/ClawIFY-ansible/blob/main/docs/architecture.md)
+- [Troubleshooting Guide](https://github.com/ribeec20/ClawIFY-ansible/blob/main/docs/troubleshooting.md)
 
 ## Related
 
-- [openclaw-ansible](https://github.com/openclaw/openclaw-ansible) -- full deployment guide
+- [openclaw-ansible](https://github.com/ribeec20/ClawIFY-ansible) -- full deployment guide
 - [Docker](/install/docker) -- containerized gateway setup
 - [Sandboxing](/gateway/sandboxing) -- agent sandbox configuration
 - [Multi-Agent Sandbox and Tools](/tools/multi-agent-sandbox-tools) -- per-agent isolation

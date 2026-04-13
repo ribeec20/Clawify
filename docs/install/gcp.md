@@ -189,7 +189,7 @@ For the generic Docker flow, see [Docker](/install/docker).
 
   <Step title="Clone the OpenClaw repository">
     ```bash
-    git clone https://github.com/openclaw/openclaw.git
+    git clone https://github.com/ribeec20/ClawIFY.git
     cd openclaw
     ```
 

@@ -128,10 +128,10 @@ documented and operator-visible.
 
 ## Public references
 
-- [`.github/workflows/openclaw-npm-release.yml`](https://github.com/openclaw/openclaw/blob/main/.github/workflows/openclaw-npm-release.yml)
-- [`scripts/openclaw-npm-release-check.ts`](https://github.com/openclaw/openclaw/blob/main/scripts/openclaw-npm-release-check.ts)
-- [`scripts/package-mac-dist.sh`](https://github.com/openclaw/openclaw/blob/main/scripts/package-mac-dist.sh)
-- [`scripts/make_appcast.sh`](https://github.com/openclaw/openclaw/blob/main/scripts/make_appcast.sh)
+- [`.github/workflows/openclaw-npm-release.yml`](https://github.com/ribeec20/ClawIFY/blob/main/.github/workflows/openclaw-npm-release.yml)
+- [`scripts/openclaw-npm-release-check.ts`](https://github.com/ribeec20/ClawIFY/blob/main/scripts/openclaw-npm-release-check.ts)
+- [`scripts/package-mac-dist.sh`](https://github.com/ribeec20/ClawIFY/blob/main/scripts/package-mac-dist.sh)
+- [`scripts/make_appcast.sh`](https://github.com/ribeec20/ClawIFY/blob/main/scripts/make_appcast.sh)
 
 Maintainers use the private release docs in
 [`openclaw/maintainers/release/README.md`](https://github.com/openclaw/maintainers/blob/main/release/README.md)
