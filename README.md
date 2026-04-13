@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ribeec20/clawify/main/assets/clawify-logo.png" alt="Clawify" width="600" />
+</p>
+
 # @ribeec20/clawify
 
 **An API and agent SDK forked from [OpenClaw](https://github.com/openclaw/openclaw).**
