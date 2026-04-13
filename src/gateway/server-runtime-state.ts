@@ -17,6 +17,7 @@ import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import type { ChatAbortControllerEntry } from "./chat-abort.js";
 import type { ControlUiRootState } from "./control-ui.js";
+import type { GatewayFeatureLockState } from "./feature-locks.js";
 import type { HooksConfigResolved } from "./hooks.js";
 import type { GatewayManagementMethodInvoker } from "./management-http.js";
 import type { HostManagerLifecycleAdapter } from "./management-host.js";
@@ -68,6 +69,7 @@ export async function createGatewayRuntimeState(params: {
   managementApi?: {
     invokeGatewayMethod: GatewayManagementMethodInvoker;
     hostLifecycle: HostManagerLifecycleAdapter;
+    featureLocks?: GatewayFeatureLockState;
   };
   resolvedAuth: ResolvedGatewayAuth;
   /** Optional rate limiter for auth brute-force protection. */

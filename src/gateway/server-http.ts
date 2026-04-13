@@ -72,6 +72,7 @@ import type { HostManagerLifecycleAdapter } from "./management-host.js";
 import { resolveRequestClientIp } from "./net.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
+import type { GatewayFeatureLockState } from "./feature-locks.js";
 import { DEDUPE_MAX, DEDUPE_TTL_MS } from "./server-constants.js";
 import { authorizeCanvasRequest, isCanvasPath } from "./server/http-auth.js";
 import { resolvePluginRouteRuntimeOperatorScopes } from "./server/plugin-route-runtime-scopes.js";
@@ -761,6 +762,7 @@ export function createGatewayHttpServer(opts: {
   managementApi?: {
     invokeGatewayMethod: GatewayManagementMethodInvoker;
     hostLifecycle: HostManagerLifecycleAdapter;
+    featureLocks?: GatewayFeatureLockState;
   };
   handleHooksRequest: HooksRequestHandler;
   handlePluginRequest?: PluginHttpRequestHandler;
@@ -842,6 +844,7 @@ export function createGatewayHttpServer(opts: {
                   rateLimiter,
                   invokeGatewayMethod: managementApi.invokeGatewayMethod,
                   hostLifecycle: managementApi.hostLifecycle,
+                  featureLocks: managementApi.featureLocks,
                 })
               : false,
         },

@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { Server as HttpServer } from "node:http";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GatewayLockError } from "../../infra/gateway-lock.js";
 import { listenGatewayHttpServer } from "./http-listen.js";
 
@@ -10,7 +10,7 @@ vi.mock("../../utils.js", () => ({
   sleep: (ms: number) => sleepMock(ms),
 }));
 
-type ListenOutcome = { kind: "error"; code: string } | { kind: "listening" };
+type ListenOutcome = { kind: "error"; code: string } | { kind: "listening" } | { kind: "hang" };
 
 function createFakeHttpServer(outcomes: ListenOutcome[]) {
   class FakeHttpServer extends EventEmitter {
@@ -20,6 +20,9 @@ function createFakeHttpServer(outcomes: ListenOutcome[]) {
     listen(_port: number, _host: string) {
       const outcome = outcomes[this.attempt] ?? { kind: "listening" };
       this.attempt += 1;
+      if (outcome.kind === "hang") {
+        return this;
+      }
       setImmediate(() => {
         if (outcome.kind === "error") {
           const err = Object.assign(new Error(outcome.code), { code: outcome.code });
@@ -42,6 +45,10 @@ function createFakeHttpServer(outcomes: ListenOutcome[]) {
 }
 
 describe("listenGatewayHttpServer", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("retries EADDRINUSE and closes server handle before retry", async () => {
     sleepMock.mockClear();
     const fake = createFakeHttpServer([
@@ -95,6 +102,25 @@ describe("listenGatewayHttpServer", () => {
       }),
     ).rejects.toBeInstanceOf(GatewayLockError);
 
+    expect(fake.closeCalls).toBe(0);
+  });
+
+  it("times out when listen never resolves", async () => {
+    vi.useFakeTimers();
+    sleepMock.mockClear();
+    const fake = createFakeHttpServer([{ kind: "hang" }]);
+
+    const startup = listenGatewayHttpServer({
+      httpServer: fake as unknown as HttpServer,
+      bindHost: "127.0.0.1",
+      port: 18789,
+    });
+
+    await vi.advanceTimersByTimeAsync(10_001);
+
+    await expect(startup).rejects.toMatchObject({
+      message: expect.stringContaining("timed out"),
+    });
     expect(fake.closeCalls).toBe(0);
   });
 });

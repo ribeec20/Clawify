@@ -56,6 +56,7 @@ export type GatewayRequestContextParams = {
   markChannelLoggedOut: GatewayRequestContext["markChannelLoggedOut"];
   wizardRunner: GatewayRequestContext["wizardRunner"];
   broadcastVoiceWakeChanged: GatewayRequestContext["broadcastVoiceWakeChanged"];
+  featureLocks?: GatewayRequestContext["featureLocks"];
   unavailableGatewayMethods: ReadonlySet<string>;
 };
 
@@ -149,6 +150,7 @@ export function createGatewayRequestContext(
     markChannelLoggedOut: params.markChannelLoggedOut,
     wizardRunner: params.wizardRunner,
     broadcastVoiceWakeChanged: params.broadcastVoiceWakeChanged,
+    featureLocks: params.featureLocks,
     unavailableGatewayMethods: params.unavailableGatewayMethods,
   };
 }

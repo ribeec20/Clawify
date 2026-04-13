@@ -34,6 +34,7 @@ import {
   diffConfigPaths,
   resolveGatewayReloadSettings,
 } from "../config-reload.js";
+import { findLockedConfigViolations } from "../feature-locks.js";
 import {
   formatControlPlaneActor,
   resolveControlPlaneActor,
@@ -282,6 +283,46 @@ function summarizeConfigValidationIssues(issues: ReadonlyArray<ConfigValidationI
   }`;
 }
 
+function buildFeatureLockMessage(violations: ReturnType<typeof findLockedConfigViolations>): string {
+  const summary = violations
+    .map((violation) => `${violation.feature} (${violation.paths.join(", ")})`)
+    .join("; ");
+  return `config write rejected: startup feature lock active for ${summary}`;
+}
+
+function rejectLockedFeatureConfigWrite(params: {
+  changedPaths: string[];
+  previousConfig?: OpenClawConfig;
+  nextConfig?: OpenClawConfig;
+  context?: GatewayRequestContext;
+  respond: RespondFn;
+}): boolean {
+  const locks = params.context?.featureLocks;
+  if (!locks) {
+    return false;
+  }
+  const violations = findLockedConfigViolations({
+    changedPaths: params.changedPaths,
+    previousConfig: params.previousConfig,
+    nextConfig: params.nextConfig,
+    locks,
+  });
+  if (violations.length === 0) {
+    return false;
+  }
+  params.respond(
+    false,
+    undefined,
+    errorShape(ErrorCodes.INVALID_REQUEST, buildFeatureLockMessage(violations), {
+      details: {
+        kind: "FEATURE_LOCKED",
+        violations,
+      },
+    }),
+  );
+  return true;
+}
+
 function shouldScheduleDirectConfigRestart(params: {
   changedPaths: string[];
   nextConfig: OpenClawConfig;
@@ -446,6 +487,18 @@ export const configHandlers: GatewayRequestHandlers = {
     if (!parsed) {
       return;
     }
+    const changedPaths = diffConfigPaths(snapshot.config, parsed.config);
+    if (
+      rejectLockedFeatureConfigWrite({
+        changedPaths,
+        previousConfig: snapshot.config,
+        nextConfig: parsed.config,
+        context,
+        respond,
+      })
+    ) {
+      return;
+    }
     if (!(await ensureResolvableSecretRefsOrRespond({ config: parsed.config, respond }))) {
       return;
     }
@@ -533,10 +586,21 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const changedPaths = diffConfigPaths(snapshot.config, validated.config);
+    if (
+      rejectLockedFeatureConfigWrite({
+        changedPaths,
+        previousConfig: snapshot.config,
+        nextConfig: validated.config,
+        context,
+        respond,
+      })
+    ) {
+      return;
+    }
     if (!(await ensureResolvableSecretRefsOrRespond({ config: validated.config, respond }))) {
       return;
     }
-    const changedPaths = diffConfigPaths(snapshot.config, validated.config);
     const actor = resolveControlPlaneActor(client);
 
     // No-op: if the validated config is identical to the current config,
@@ -631,10 +695,21 @@ export const configHandlers: GatewayRequestHandlers = {
     if (!parsed) {
       return;
     }
+    const changedPaths = diffConfigPaths(snapshot.config, parsed.config);
+    if (
+      rejectLockedFeatureConfigWrite({
+        changedPaths,
+        previousConfig: snapshot.config,
+        nextConfig: parsed.config,
+        context,
+        respond,
+      })
+    ) {
+      return;
+    }
     if (!(await ensureResolvableSecretRefsOrRespond({ config: parsed.config, respond }))) {
       return;
     }
-    const changedPaths = diffConfigPaths(snapshot.config, parsed.config);
     const actor = resolveControlPlaneActor(client);
     context?.logGateway?.info(
       `config.apply write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} restartReason=config.apply`,

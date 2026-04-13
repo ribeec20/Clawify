@@ -4,6 +4,7 @@ import { sleep } from "../../utils.js";
 
 const EADDRINUSE_MAX_RETRIES = 4;
 const EADDRINUSE_RETRY_INTERVAL_MS = 500;
+const HTTP_LISTEN_TIMEOUT_MS = 10_000;
 
 async function closeServerQuietly(httpServer: HttpServer): Promise<void> {
   await new Promise<void>((resolve) => {
@@ -25,17 +26,39 @@ export async function listenGatewayHttpServer(params: {
   for (let attempt = 0; ; attempt++) {
     try {
       await new Promise<void>((resolve, reject) => {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const onError = (err: NodeJS.ErrnoException) => {
-          httpServer.off("listening", onListening);
+          cleanup();
           reject(err);
         };
         const onListening = () => {
-          httpServer.off("error", onError);
+          cleanup();
           resolve();
+        };
+        const cleanup = () => {
+          httpServer.off("error", onError);
+          httpServer.off("listening", onListening);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
         };
         httpServer.once("error", onError);
         httpServer.once("listening", onListening);
-        httpServer.listen(port, bindHost);
+        timeoutId = setTimeout(() => {
+          cleanup();
+          reject(
+            new Error(
+              `gateway http listen timed out after ${HTTP_LISTEN_TIMEOUT_MS}ms (${bindHost}:${port})`,
+            ),
+          );
+        }, HTTP_LISTEN_TIMEOUT_MS);
+        timeoutId.unref?.();
+        try {
+          httpServer.listen(port, bindHost);
+        } catch (err) {
+          cleanup();
+          reject(err);
+        }
       });
       return; // bound successfully
     } catch (err) {

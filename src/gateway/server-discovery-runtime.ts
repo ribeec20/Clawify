@@ -1,4 +1,4 @@
-import { startGatewayBonjourAdvertiser } from "../infra/bonjour.js";
+import { startGatewayBonjourAdvertiserWithTimeout } from "../infra/bonjour.js";
 import { pickPrimaryTailnetIPv4, pickPrimaryTailnetIPv6 } from "../infra/tailnet.js";
 import { resolveWideAreaDiscoveryDomain, writeWideAreaGatewayZone } from "../infra/widearea-dns.js";
 import {
@@ -40,7 +40,7 @@ export async function startGatewayDiscovery(params: {
 
   if (bonjourEnabled) {
     try {
-      const bonjour = await startGatewayBonjourAdvertiser({
+      const bonjour = await startGatewayBonjourAdvertiserWithTimeout({
         instanceName: formatBonjourInstanceName(params.machineDisplayName),
         gatewayPort: params.port,
         gatewayTlsEnabled: params.gatewayTls?.enabled ?? false,

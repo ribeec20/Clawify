@@ -68,6 +68,7 @@ type ConsoleLogFn = (...args: unknown[]) => void;
 const WATCHDOG_INTERVAL_MS = 5_000;
 const REPAIR_DEBOUNCE_MS = 30_000;
 const STUCK_ANNOUNCING_MS = 8_000;
+const BONJOUR_START_TIMEOUT_MS = 5_000;
 const CIAO_SELF_PROBE_RETRY_FRAGMENT =
   "failed probing with reason: Error: Can't probe for a service which is announced already.";
 
@@ -425,5 +426,45 @@ export async function startGatewayBonjourAdvertiser(
   } catch (err) {
     restoreConsoleLog();
     throw err;
+  }
+}
+
+export async function startGatewayBonjourAdvertiserWithTimeout(
+  opts: GatewayBonjourAdvertiseOpts,
+  timeoutMs: number = BONJOUR_START_TIMEOUT_MS,
+): Promise<GatewayBonjourAdvertiser> {
+  const resolvedTimeoutMs =
+    Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : BONJOUR_START_TIMEOUT_MS;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const startup = startGatewayBonjourAdvertiser(opts);
+
+  const timedStartup = new Promise<GatewayBonjourAdvertiser>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`bonjour advertiser startup timed out after ${resolvedTimeoutMs}ms`));
+    }, resolvedTimeoutMs);
+    timeoutId.unref?.();
+  });
+
+  try {
+    return await Promise.race([startup, timedStartup]);
+  } catch (err) {
+    // A delayed startup can still resolve after timeout; stop it to avoid leaking
+    // an unreachable advertiser when gateway startup already moved on.
+    void startup
+      .then(async (advertiser) => {
+        try {
+          await advertiser.stop();
+        } catch {
+          // ignore cleanup errors
+        }
+      })
+      .catch(() => {
+        // ignore late-start failures
+      });
+    throw err;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 }

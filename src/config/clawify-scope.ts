@@ -1,6 +1,7 @@
 import { normalizeOptionalString } from "../shared/string-coerce.js";
 import type { McpConfig } from "./types.mcp.js";
 import type {
+  ClawifyCustomToolDefinition,
   ClawifyInstanceConfig,
   ClawifyScopedMcpConfig,
   ClawifyScopedSkillsConfig,
@@ -85,14 +86,49 @@ function mergeToolPolicyRecord(params: {
   return next;
 }
 
+/**
+ * Collect tool names from custom tool definitions where removable is explicitly false.
+ */
+function collectNonRemovableToolNames(
+  customTools: Record<string, ClawifyCustomToolDefinition> | undefined,
+): Set<string> {
+  const names = new Set<string>();
+  if (!customTools) {
+    return names;
+  }
+  for (const def of Object.values(customTools)) {
+    if (def?.removable === false && def.name) {
+      names.add(def.name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Filter deny entries to exclude protected (non-removable) tool names.
+ */
+function filterProtectedDeny(
+  deny: string[] | undefined,
+  protectedNames: Set<string>,
+): string[] | undefined {
+  if (!deny || protectedNames.size === 0) {
+    return deny;
+  }
+  const filtered = deny.filter((name) => !protectedNames.has(name));
+  return filtered.length > 0 ? filtered : undefined;
+}
+
 function mergeScopedTools(params: {
   base: ToolsConfig | undefined;
   overlay: ClawifyScopedToolsConfig | undefined;
   mode: ClawifyUserMutationPolicy | "replace";
+  /** Tool names that cannot be denied (non-removable custom tools). */
+  protectedNames?: Set<string>;
 }): ToolsConfig | undefined {
   if (!params.overlay) {
     return params.base;
   }
+  const protectedNames = params.protectedNames ?? new Set<string>();
   const next: ToolsConfig = {
     ...(params.base ?? {}),
   };
@@ -104,7 +140,8 @@ function mergeScopedTools(params: {
     if (allowAdditions.length > 0) {
       next.alsoAllow = dedupeStrings([...(next.alsoAllow ?? []), ...allowAdditions]);
     }
-    const denyAdditions = normalizeStringArray(params.overlay.deny) ?? [];
+    const rawDeny = normalizeStringArray(params.overlay.deny) ?? [];
+    const denyAdditions = filterProtectedDeny(rawDeny, protectedNames) ?? [];
     if (denyAdditions.length > 0) {
       next.deny = dedupeStrings([...(next.deny ?? []), ...denyAdditions]);
     }
@@ -119,7 +156,8 @@ function mergeScopedTools(params: {
       next.alsoAllow = normalizeStringArray(params.overlay.alsoAllow) ?? [];
     }
     if (params.overlay.deny !== undefined) {
-      next.deny = normalizeStringArray(params.overlay.deny) ?? [];
+      const rawDeny = normalizeStringArray(params.overlay.deny) ?? [];
+      next.deny = filterProtectedDeny(rawDeny, protectedNames) ?? [];
     }
     if (params.overlay.profile !== undefined) {
       next.profile = params.overlay.profile;
@@ -271,6 +309,7 @@ export function applyClawifyScopeToConfig(params: {
   const toolsPolicy = resolveMutationPolicy(scopedInstance.instance.userPolicy?.tools);
   const skillsPolicy = resolveMutationPolicy(scopedInstance.instance.userPolicy?.skills);
   const mcpPolicy = resolveMutationPolicy(scopedInstance.instance.userPolicy?.mcp);
+  const protectedToolNames = collectNonRemovableToolNames(scopedInstance.instance.customTools);
   return {
     ...withInstance,
     tools:
@@ -280,6 +319,7 @@ export function applyClawifyScopeToConfig(params: {
             base: withInstance.tools,
             overlay: scopedUser.tools,
             mode: toolsPolicy,
+            protectedNames: protectedToolNames,
           }),
     skills:
       skillsPolicy === "none"

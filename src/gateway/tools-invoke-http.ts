@@ -39,6 +39,7 @@ type ToolsInvokeBody = {
   args?: unknown;
   sessionKey?: unknown;
   dryRun?: unknown;
+  instanceId?: unknown;
 };
 
 function resolveSessionKeyFromBody(body: ToolsInvokeBody): string | undefined {
@@ -231,6 +232,7 @@ export async function handleToolsInvokeHttpRequest(
   const accountId = normalizeOptionalString(getHeader(req, "x-openclaw-account-id"));
   const agentTo = normalizeOptionalString(getHeader(req, "x-openclaw-message-to"));
   const agentThreadId = normalizeOptionalString(getHeader(req, "x-openclaw-thread-id"));
+  const instanceId = normalizeOptionalString(body.instanceId);
   const { agentId, tools } = resolveGatewayScopedTools({
     cfg,
     sessionKey,
@@ -242,6 +244,7 @@ export async function handleToolsInvokeHttpRequest(
     allowMediaInvokeCommands: true,
     surface: "http",
     disablePluginTools: isKnownCoreToolId(toolName),
+    instanceId,
   });
   // Owner semantics intentionally follow the same shared-secret HTTP contract
   // on this direct tool surface; SECURITY.md documents this as designed-as-is.

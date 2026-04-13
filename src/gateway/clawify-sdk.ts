@@ -1,4 +1,6 @@
 import type {
+  ClawifyCustomToolDefinition,
+  ClawifyCustomToolHttpTarget,
   ClawifyInstanceConfig,
   ClawifyUserConfig,
   ClawifyUserMutationPolicy,
@@ -64,6 +66,28 @@ type SkillsUpdateResult = {
   config?: JsonRecord;
 };
 
+type ConfigGetResult = {
+  path?: string;
+  hash?: string;
+  config?: JsonRecord;
+  raw?: string;
+};
+
+type ConfigSchemaResult = {
+  schema: unknown;
+  uiHints?: Record<string, unknown>;
+  version?: string;
+  generatedAt?: string;
+};
+
+type ConfigSchemaLookupResult = {
+  path: string;
+  schema: unknown;
+  hint?: Record<string, unknown>;
+  hintPath?: string;
+  children?: Array<Record<string, unknown>>;
+};
+
 export type ClawifyClientOptions = {
   baseUrl?: string;
   token?: string;
@@ -117,6 +141,11 @@ export type ClawifyPromptResult = {
   messageSeq?: number;
   status?: string;
 };
+
+export type ClawifyCronListParams = Record<string, unknown>;
+export type ClawifyCronRunsParams = Record<string, unknown>;
+export type ClawifyChannelsStatusParams = Record<string, unknown>;
+export type ClawifyCronMutationParams = Record<string, unknown>;
 
 type ManagementRequestParams = {
   method: "GET" | "POST";
@@ -570,6 +599,39 @@ export class ClawifyInstanceClient {
     });
   }
 
+  async registerCustomTool(
+    toolName: string,
+    definition: ClawifyCustomToolDefinition,
+  ): Promise<ClawifyMutationResult> {
+    const normalizedToolName = assertNonEmptyString(toolName, "toolName");
+    const current = await this.readConfigOrEmpty();
+    return await this.upsert({
+      ...current,
+      customTools: {
+        ...(current.customTools ?? {}),
+        [normalizedToolName]: definition,
+      },
+    });
+  }
+
+  async removeCustomTool(toolName: string): Promise<ClawifyMutationResult> {
+    const normalizedToolName = assertNonEmptyString(toolName, "toolName");
+    const current = await this.readConfigOrEmpty();
+    const nextTools = {
+      ...(current.customTools ?? {}),
+    };
+    delete nextTools[normalizedToolName];
+    return await this.upsert({
+      ...current,
+      customTools: Object.keys(nextTools).length > 0 ? nextTools : undefined,
+    });
+  }
+
+  async listCustomTools(): Promise<Record<string, ClawifyCustomToolDefinition>> {
+    const config = await this.readConfigOrEmpty();
+    return (config.customTools as Record<string, ClawifyCustomToolDefinition>) ?? {};
+  }
+
   async createSession(params: ClawifySessionCreateParams = {}): Promise<SessionCreateResult> {
     return await this.http.post<SessionCreateResult>("/sessions/create", {
       ...params,
@@ -808,6 +870,59 @@ export class ClawifyClient {
       "/clawify/instances/list",
     );
   }
+
+  async getConfig(): Promise<ConfigGetResult> {
+    return await this.http.get<ConfigGetResult>("/config/get");
+  }
+
+  async getConfigSchema(): Promise<ConfigSchemaResult> {
+    return await this.http.get<ConfigSchemaResult>("/config/schema");
+  }
+
+  async lookupConfigSchema(path: string): Promise<ConfigSchemaLookupResult> {
+    return await this.http.post<ConfigSchemaLookupResult>("/config/schema/lookup", {
+      path: assertNonEmptyString(path, "path"),
+    });
+  }
+
+  async listCron(params: ClawifyCronListParams = {}): Promise<JsonRecord> {
+    return await this.http.get<JsonRecord>("/cron/list", params);
+  }
+
+  async getCronStatus(): Promise<JsonRecord> {
+    return await this.http.get<JsonRecord>("/cron/status");
+  }
+
+  async addCron(params: ClawifyCronMutationParams): Promise<JsonRecord> {
+    return await this.http.post<JsonRecord>("/cron/add", params);
+  }
+
+  async updateCron(params: ClawifyCronMutationParams): Promise<JsonRecord> {
+    return await this.http.post<JsonRecord>("/cron/update", params);
+  }
+
+  async removeCron(params: ClawifyCronMutationParams): Promise<JsonRecord> {
+    return await this.http.post<JsonRecord>("/cron/remove", params);
+  }
+
+  async runCron(params: ClawifyCronMutationParams): Promise<JsonRecord> {
+    return await this.http.post<JsonRecord>("/cron/run", params);
+  }
+
+  async listCronRuns(params: ClawifyCronRunsParams = {}): Promise<JsonRecord> {
+    return await this.http.get<JsonRecord>("/cron/runs", params);
+  }
+
+  async getChannelsStatus(params: ClawifyChannelsStatusParams = {}): Promise<JsonRecord> {
+    return await this.http.get<JsonRecord>("/channels/status", params);
+  }
+
+  async logoutChannel(params: { channel: string; accountId?: string }): Promise<JsonRecord> {
+    return await this.http.post<JsonRecord>("/channels/logout", {
+      channel: assertNonEmptyString(params.channel, "channel"),
+      ...(normalizeNonEmptyString(params.accountId) ? { accountId: params.accountId } : {}),
+    });
+  }
 }
 
 export function createClawify(options: ClawifyClientOptions = {}): ClawifyClient {
@@ -823,3 +938,5 @@ export const clawify = {
     return createClawify(options).user(instanceId, userId);
   },
 };
+
+export type { ClawifyCustomToolDefinition, ClawifyCustomToolHttpTarget };

@@ -30,8 +30,9 @@ export class McpLoopbackToolCache {
     sessionKey: string;
     messageProvider: string | undefined;
     accountId: string | undefined;
+    instanceId?: string;
   }): CachedScopedTools {
-    const cacheKey = [params.sessionKey, params.messageProvider ?? "", params.accountId ?? ""].join(
+    const cacheKey = [params.sessionKey, params.messageProvider ?? "", params.accountId ?? "", params.instanceId ?? ""].join(
       "\u0000",
     );
     const now = Date.now();
@@ -47,6 +48,7 @@ export class McpLoopbackToolCache {
       accountId: params.accountId,
       surface: "loopback",
       excludeToolNames: NATIVE_TOOL_EXCLUDE,
+      instanceId: params.instanceId,
     });
     const nextEntry: CachedScopedTools = {
       tools: next.tools,

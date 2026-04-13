@@ -168,4 +168,136 @@ describe("config shared auth disconnects", () => {
 
     expect(scheduleGatewaySigusr1RestartMock).toHaveBeenCalledTimes(1);
   });
+
+  it("rejects config.set writes for locked cron namespaces", async () => {
+    const prevConfig: OpenClawConfig = {};
+    const nextConfig: OpenClawConfig = {
+      cron: {
+        enabled: true,
+      },
+    };
+    readConfigFileSnapshotForWriteMock.mockResolvedValue(createConfigWriteSnapshot(prevConfig));
+    const { options, respond } = createConfigHandlerHarness({
+      method: "config.set",
+      params: {
+        raw: JSON.stringify(nextConfig),
+        baseHash: "base-hash",
+      },
+      contextOverrides: {
+        featureLocks: {
+          cronLockedOff: true,
+          channelsLockedOff: false,
+        },
+      },
+    });
+
+    await configHandlers["config.set"](options);
+
+    expect(writeConfigFileMock).not.toHaveBeenCalled();
+    expect(scheduleGatewaySigusr1RestartMock).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: expect.stringContaining("startup feature lock active"),
+      }),
+    );
+  });
+
+  it("rejects config.patch writes for locked channel namespaces", async () => {
+    const prevConfig: OpenClawConfig = {};
+    readConfigFileSnapshotForWriteMock.mockResolvedValue(createConfigWriteSnapshot(prevConfig));
+    const { options, respond } = createConfigHandlerHarness({
+      method: "config.patch",
+      params: {
+        baseHash: "base-hash",
+        raw: JSON.stringify({ channels: { telegram: { enabled: true } } }),
+      },
+      contextOverrides: {
+        featureLocks: {
+          cronLockedOff: false,
+          channelsLockedOff: true,
+        },
+      },
+    });
+
+    await configHandlers["config.patch"](options);
+
+    expect(writeConfigFileMock).not.toHaveBeenCalled();
+    expect(scheduleGatewaySigusr1RestartMock).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: expect.stringContaining("startup feature lock active"),
+      }),
+    );
+  });
+
+  it("rejects config.apply writes for locked channel startup namespaces", async () => {
+    const prevConfig: OpenClawConfig = {};
+    const nextConfig: OpenClawConfig = {
+      gateway: {
+        profile: "default",
+      },
+    };
+    readConfigFileSnapshotForWriteMock.mockResolvedValue(createConfigWriteSnapshot(prevConfig));
+    const { options, respond } = createConfigHandlerHarness({
+      method: "config.apply",
+      params: {
+        raw: JSON.stringify(nextConfig),
+        baseHash: "base-hash",
+      },
+      contextOverrides: {
+        featureLocks: {
+          cronLockedOff: false,
+          channelsLockedOff: true,
+        },
+      },
+    });
+
+    await configHandlers["config.apply"](options);
+
+    expect(writeConfigFileMock).not.toHaveBeenCalled();
+    expect(scheduleGatewaySigusr1RestartMock).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: expect.stringContaining("startup feature lock active"),
+      }),
+    );
+  });
+
+  it("allows unrelated gateway writes when channel locks do not change locked namespaces", async () => {
+    const prevConfig: OpenClawConfig = {
+      gateway: {
+        auth: {
+          mode: "token",
+          token: "old-token",
+        },
+      },
+    };
+    readConfigFileSnapshotForWriteMock.mockResolvedValue(createConfigWriteSnapshot(prevConfig));
+    const { options } = createConfigHandlerHarness({
+      method: "config.patch",
+      params: {
+        baseHash: "base-hash",
+        raw: JSON.stringify({ gateway: { auth: { token: "new-token" } } }),
+      },
+      contextOverrides: {
+        featureLocks: {
+          cronLockedOff: false,
+          channelsLockedOff: true,
+        },
+      },
+    });
+
+    await configHandlers["config.patch"](options);
+
+    expect(writeConfigFileMock).toHaveBeenCalledTimes(1);
+  });
 });

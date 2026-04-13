@@ -15,6 +15,7 @@ import {
   resolveToolProfilePolicy,
 } from "../agents/tool-policy.js";
 import type { AnyAgentTool } from "../agents/tools/common.js";
+import { resolveCustomToolsFromConfig } from "../agents/tools/custom-tool-factory.js";
 import { loadConfig } from "../config/config.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
@@ -35,6 +36,8 @@ export function resolveGatewayScopedTools(params: {
   surface?: GatewayScopedToolSurface;
   excludeToolNames?: Iterable<string>;
   disablePluginTools?: boolean;
+  /** Clawify instance id for resolving custom tools. */
+  instanceId?: string;
 }) {
   const {
     agentId,
@@ -68,7 +71,7 @@ export function resolveGatewayScopedTools(params: {
     agentId ?? resolveDefaultAgentId(params.cfg),
   );
 
-  const allTools = createOpenClawTools({
+  const coreTools = createOpenClawTools({
     agentSessionKey: params.sessionKey,
     agentChannel: params.messageProvider ?? undefined,
     agentAccountId: params.accountId,
@@ -90,6 +93,18 @@ export function resolveGatewayScopedTools(params: {
       subagentPolicy,
     ]),
   });
+
+  // Inject custom tools from the clawify instance config.
+  const { tools: customTools } = resolveCustomToolsFromConfig(params.cfg, params.instanceId);
+  const coreToolNames = new Set(coreTools.map((t) => t.name));
+  const deduplicatedCustomTools = customTools.filter((tool) => {
+    if (coreToolNames.has(tool.name)) {
+      logWarn(`custom tool "${tool.name}" skipped: name conflicts with a built-in tool`);
+      return false;
+    }
+    return true;
+  });
+  const allTools = [...coreTools, ...deduplicatedCustomTools];
 
   const policyFiltered = applyToolPolicyPipeline({
     tools: allTools,

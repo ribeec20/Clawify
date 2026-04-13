@@ -24,6 +24,7 @@ import {
 import { getInspectableTaskRegistrySummary } from "../tasks/task-registry.maintenance.js";
 import type { ChannelHealthMonitor } from "./channel-health-monitor.js";
 import type { ChannelKind } from "./config-reload-plan.js";
+import type { GatewayFeatureLockState } from "./feature-locks.js";
 import { startGatewayConfigReloader, type GatewayReloadPlan } from "./config-reload.js";
 import { resolveHooksConfig } from "./hooks.js";
 import { buildGatewayCronService, type GatewayCronState } from "./server-cron.js";
@@ -53,6 +54,7 @@ type GatewayHotReloadState = {
 export function createGatewayReloadHandlers(params: {
   deps: CliDeps;
   broadcast: (event: string, payload: unknown, opts?: { dropIfSlow?: boolean }) => void;
+  featureLocks: GatewayFeatureLockState;
   getState: () => GatewayHotReloadState;
   setState: (state: GatewayHotReloadState) => void;
   startChannel: (name: ChannelKind) => Promise<void>;
@@ -90,7 +92,7 @@ export function createGatewayReloadHandlers(params: {
 
     resetDirectoryCache();
 
-    if (plan.restartCron) {
+    if (plan.restartCron && !params.featureLocks.cronLockedOff) {
       state.cronState.cron.stop();
       nextState.cronState = buildGatewayCronService({
         cfg: nextConfig,
@@ -101,6 +103,8 @@ export function createGatewayReloadHandlers(params: {
         cron: nextState.cronState.cron,
         logCron: params.logCron,
       });
+    } else if (plan.restartCron) {
+      params.logReload.info("skipping cron reload (startup feature lock active)");
     }
 
     if (plan.restartHealthMonitor) {
@@ -119,7 +123,9 @@ export function createGatewayReloadHandlers(params: {
     }
 
     if (plan.restartChannels.size > 0) {
-      if (
+      if (params.featureLocks.channelsLockedOff) {
+        params.logChannels.info("skipping channel reload (startup feature lock active)");
+      } else if (
         isTruthyEnvValue(process.env.OPENCLAW_SKIP_CHANNELS) ||
         isTruthyEnvValue(process.env.OPENCLAW_SKIP_PROVIDERS)
       ) {
@@ -253,6 +259,7 @@ export function createGatewayReloadHandlers(params: {
 export function startManagedGatewayConfigReloader(params: {
   minimalTestGateway: boolean;
   initialConfig: ReturnType<typeof loadConfig>;
+  featureLocks: GatewayFeatureLockState;
   initialInternalWriteHash: string | null;
   watchPath: string;
   readSnapshot: typeof import("../config/config.js").readConfigFileSnapshot;
@@ -290,6 +297,7 @@ export function startManagedGatewayConfigReloader(params: {
   const { applyHotReload, requestGatewayRestart } = createGatewayReloadHandlers({
     deps: params.deps,
     broadcast: params.broadcast,
+    featureLocks: params.featureLocks,
     getState: params.getState,
     setState: params.setState,
     startChannel: params.startChannel,

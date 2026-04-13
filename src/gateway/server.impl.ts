@@ -89,6 +89,11 @@ import { resolveSharedGatewaySessionGeneration } from "./server/ws-shared-genera
 import { maybeSeedControlUiAllowedOriginsAtStartup } from "./startup-control-ui-origins.js";
 import type { GatewayManagementMethodInvoker } from "./management-http.js";
 import { createHostManagerLifecycleAdapter } from "./management-host.js";
+import {
+  filterGatewayMethodsForFeatureLocks,
+  isGatewayMethodLocked,
+  resolveGatewayFeatureLocks,
+} from "./feature-locks.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
 
@@ -367,6 +372,15 @@ export async function startGatewayServer(
     tailscaleConfig,
     tailscaleMode,
   } = runtimeConfig;
+  const featureLocks = resolveGatewayFeatureLocks({
+    cfg: cfgAtStart,
+    channelsStartupEnabled,
+  });
+  const resolveRuntimeGatewayMethods = (nextBaseGatewayMethods: string[]) =>
+    filterGatewayMethodsForFeatureLocks(
+      listActiveGatewayMethods(nextBaseGatewayMethods),
+      featureLocks,
+    );
   const managementApiEnabled =
     opts.managementApiEnabled ??
     (parseBooleanEnvFlag(process.env.OPENCLAW_GATEWAY_MANAGEMENT_API) ||
@@ -544,6 +558,7 @@ export async function startGatewayServer(
       ? {
           invokeGatewayMethod: invokeGatewayManagementMethod,
           hostLifecycle,
+          featureLocks,
         }
       : undefined,
     resolvedAuth,
@@ -586,7 +601,7 @@ export async function startGatewayServer(
       deps,
       broadcast,
     }),
-    gatewayMethods: listActiveGatewayMethods(baseGatewayMethods),
+    gatewayMethods: resolveRuntimeGatewayMethods(baseGatewayMethods),
   });
   deps.cron = runtimeState.cronState.cron;
 
@@ -711,6 +726,7 @@ export async function startGatewayServer(
       startGatewayRuntimeServices({
         minimalTestGateway,
         cfgAtStart,
+        featureLocks,
         channelManager,
         cron: runtimeState.cronState.cron,
         logCron,
@@ -729,6 +745,11 @@ export async function startGatewayServer(
     const canvasHostServerPort = (canvasHostServer as CanvasHostServer | null)?.port;
 
     const unavailableGatewayMethods = new Set<string>(minimalTestGateway ? [] : ["chat.history"]);
+    for (const method of listActiveGatewayMethods(baseGatewayMethods)) {
+      if (isGatewayMethodLocked(method, featureLocks)) {
+        unavailableGatewayMethods.add(method);
+      }
+    }
     const gatewayRequestContext = createGatewayRequestContext({
       deps,
       runtimeState,
@@ -787,6 +808,7 @@ export async function startGatewayServer(
       markChannelLoggedOut,
       wizardRunner,
       broadcastVoiceWakeChanged,
+      featureLocks,
       unavailableGatewayMethods,
     });
     managementGatewayContext = gatewayRequestContext;
@@ -804,7 +826,12 @@ export async function startGatewayServer(
           pluginIds: startupPluginIds,
           logDiagnostics: false,
         }));
-        runtimeState.gatewayMethods = listActiveGatewayMethods(baseGatewayMethods);
+        runtimeState.gatewayMethods = resolveRuntimeGatewayMethods(baseGatewayMethods);
+        for (const method of listActiveGatewayMethods(baseGatewayMethods)) {
+          if (isGatewayMethodLocked(method, featureLocks)) {
+            unavailableGatewayMethods.add(method);
+          }
+        }
       }
     }
 
@@ -865,6 +892,7 @@ export async function startGatewayServer(
     runtimeState.configReloader = startManagedGatewayConfigReloader({
       minimalTestGateway,
       initialConfig: cfgAtStart,
+      featureLocks,
       initialInternalWriteHash: startupInternalWriteHash,
       watchPath: configSnapshot.path,
       readSnapshot: readConfigFileSnapshot,

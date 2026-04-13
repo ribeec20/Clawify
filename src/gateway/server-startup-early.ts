@@ -12,6 +12,31 @@ import { startMcpLoopbackServer } from "./mcp-http.js";
 import { startGatewayDiscovery } from "./server-discovery-runtime.js";
 import { startGatewayMaintenanceTimers } from "./server-maintenance.js";
 
+const GATEWAY_DISCOVERY_START_TIMEOUT_MS = 5_000;
+
+class GatewayStartupTimeoutError extends Error {}
+
+async function withStartupTimeout<T>(
+  work: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new GatewayStartupTimeoutError(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    timeoutId.unref?.();
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 export async function startGatewayEarlyRuntime(params: {
   minimalTestGateway: boolean;
   cfgAtStart: OpenClawConfig;
@@ -65,7 +90,7 @@ export async function startGatewayEarlyRuntime(params: {
   let bonjourStop: (() => Promise<void>) | null = null;
   if (!params.minimalTestGateway) {
     const machineDisplayName = await getMachineDisplayName();
-    const discovery = await startGatewayDiscovery({
+    const discoveryStartup = startGatewayDiscovery({
       machineDisplayName,
       port: params.port,
       gatewayTls: params.gatewayTls.enabled
@@ -77,7 +102,33 @@ export async function startGatewayEarlyRuntime(params: {
       mdnsMode: params.cfgAtStart.discovery?.mdns?.mode,
       logDiscovery: params.logDiscovery,
     });
-    bonjourStop = discovery.bonjourStop;
+    try {
+      const discovery = await withStartupTimeout(
+        discoveryStartup,
+        GATEWAY_DISCOVERY_START_TIMEOUT_MS,
+        "gateway discovery startup",
+      );
+      bonjourStop = discovery.bonjourStop;
+    } catch (error) {
+      if (!(error instanceof GatewayStartupTimeoutError)) {
+        throw error;
+      }
+      params.logDiscovery.warn(`gateway discovery startup skipped: ${String(error)}`);
+      void discoveryStartup
+        .then(async (lateDiscovery) => {
+          if (!lateDiscovery.bonjourStop) {
+            return;
+          }
+          try {
+            await lateDiscovery.bonjourStop();
+          } catch {
+            // ignore late cleanup errors
+          }
+        })
+        .catch(() => {
+          // ignore late startup failures
+        });
+    }
   }
 
   if (!params.minimalTestGateway) {

@@ -68,6 +68,48 @@ const ClawifyScopedMcpConfigSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const ClawifyCustomToolAuthSchema = Type.Union([
+  Type.Object(
+    {
+      type: Type.Literal("bearer"),
+      token: Type.String(),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("header"),
+      name: NonEmptyString,
+      value: Type.String(),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+const ClawifyCustomToolHttpTargetSchema = Type.Object(
+  {
+    url: NonEmptyString,
+    method: Type.Optional(
+      Type.Union([Type.Literal("POST"), Type.Literal("PUT"), Type.Literal("PATCH")]),
+    ),
+    headers: Type.Optional(Type.Record(NonEmptyString, Type.String())),
+    auth: Type.Optional(ClawifyCustomToolAuthSchema),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 1 })),
+  },
+  { additionalProperties: false },
+);
+
+const ClawifyCustomToolDefinitionSchema = Type.Object(
+  {
+    name: NonEmptyString,
+    description: Type.String(),
+    parameters: Type.Record(Type.String(), Type.Unknown()),
+    target: ClawifyCustomToolHttpTargetSchema,
+    removable: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
 const ClawifyMutationPolicySchema = Type.Union([
   Type.Literal("none"),
   Type.Literal("allowlist-extend"),
@@ -97,6 +139,9 @@ export const ClawifyInstanceConfigSchema = Type.Object(
     tools: Type.Optional(ClawifyScopedToolsConfigSchema),
     skills: Type.Optional(ClawifyScopedSkillsConfigSchema),
     mcp: Type.Optional(ClawifyScopedMcpConfigSchema),
+    customTools: Type.Optional(
+      Type.Record(NonEmptyString, ClawifyCustomToolDefinitionSchema),
+    ),
     userPolicy: Type.Optional(ClawifyUserPolicyConfigSchema),
     users: Type.Optional(Type.Record(NonEmptyString, ClawifyUserConfigSchema)),
   },

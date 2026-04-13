@@ -73,6 +73,70 @@ describe("handleManagementHttpRequest", () => {
     );
   });
 
+  it("omits locked cron/channel routes from management route discovery", async () => {
+    await handleManagementHttpRequest(createRequest("/v1/management", "GET"), {} as ServerResponse, {
+      auth: { mode: "none", allowTailscale: false },
+      invokeGatewayMethod: async () => ({ ok: true, payload: {} }),
+      hostLifecycle: {
+        status: async () => ({}),
+        probe: async () => ({}),
+        install: async () => ({}),
+        start: async () => ({}),
+        stop: async () => ({}),
+        restart: async () => ({}),
+        uninstall: async () => ({}),
+      },
+      featureLocks: {
+        cronLockedOff: true,
+        channelsLockedOff: true,
+      },
+    });
+
+    const payload = vi.mocked(sendJson).mock.calls[0]?.[2] as {
+      ok: boolean;
+      result?: { routes?: Array<{ id?: string }> };
+    };
+    const routeIds = new Set((payload.result?.routes ?? []).map((route) => route.id));
+    expect(routeIds.has("cron-list")).toBe(false);
+    expect(routeIds.has("channels-status")).toBe(false);
+    expect(routeIds.has("nodes-list")).toBe(true);
+  });
+
+  it("returns not_found for locked management routes", async () => {
+    await handleManagementHttpRequest(
+      createRequest("/v1/management/cron/list", "GET"),
+      {} as ServerResponse,
+      {
+        auth: { mode: "none", allowTailscale: false },
+        invokeGatewayMethod: async () => ({ ok: true, payload: {} }),
+        hostLifecycle: {
+          status: async () => ({}),
+          probe: async () => ({}),
+          install: async () => ({}),
+          start: async () => ({}),
+          stop: async () => ({}),
+          restart: async () => ({}),
+          uninstall: async () => ({}),
+        },
+        featureLocks: {
+          cronLockedOff: true,
+          channelsLockedOff: false,
+        },
+      },
+    );
+
+    expect(vi.mocked(sendJson)).toHaveBeenCalledWith(
+      expect.anything(),
+      404,
+      expect.objectContaining({
+        ok: false,
+        error: expect.objectContaining({
+          code: "not_found",
+        }),
+      }),
+    );
+  });
+
   it("enforces route-level scope checks", async () => {
     vi.mocked(resolveOpenAiCompatibleHttpOperatorScopes).mockReturnValue([]);
     const invokeGatewayMethod = vi.fn(async () => ({ ok: true, payload: { ok: true } }));

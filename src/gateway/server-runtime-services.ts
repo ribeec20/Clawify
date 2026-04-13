@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import { startHeartbeatRunner, type HeartbeatRunner } from "../infra/heartbeat-runner.js";
+import type { GatewayFeatureLockState } from "./feature-locks.js";
 import type { ChannelHealthMonitor } from "./channel-health-monitor.js";
 import { startChannelHealthMonitor } from "./channel-health-monitor.js";
 import { startGatewayModelPricingRefresh } from "./model-pricing-cache.js";
@@ -70,10 +71,11 @@ function recoverPendingOutboundDeliveries(params: {
 export function startGatewayRuntimeServices(params: {
   minimalTestGateway: boolean;
   cfgAtStart: OpenClawConfig;
+  featureLocks: GatewayFeatureLockState;
   channelManager: GatewayChannelManager;
   cron: { start: () => Promise<void> };
   logCron: { error: (message: string) => void };
-  log: GatewayRuntimeServiceLogger;
+  log: GatewayRuntimeServiceLogger & { info: (message: string) => void };
 }): {
   heartbeatRunner: HeartbeatRunner;
   channelHealthMonitor: ChannelHealthMonitor | null;
@@ -88,10 +90,14 @@ export function startGatewayRuntimeServices(params: {
   });
 
   if (!params.minimalTestGateway) {
-    startGatewayCronWithLogging({
-      cron: params.cron,
-      logCron: params.logCron,
-    });
+    if (params.featureLocks.cronLockedOff) {
+      params.log.info("skipping cron start (startup feature lock active)");
+    } else {
+      startGatewayCronWithLogging({
+        cron: params.cron,
+        logCron: params.logCron,
+      });
+    }
     recoverPendingOutboundDeliveries({
       cfg: params.cfgAtStart,
       log: params.log,

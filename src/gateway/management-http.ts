@@ -24,6 +24,7 @@ import {
   authorizeOperatorScopesForMethod,
   resolveRequiredOperatorScopeForMethod,
 } from "./method-scopes.js";
+import { isManagementRouteEnabled, type GatewayFeatureLockState } from "./feature-locks.js";
 import type { HostManagerLifecycleAdapter } from "./management-host.js";
 
 const MANAGEMENT_API_PREFIX = "/v1/management";
@@ -358,9 +359,27 @@ async function resolveCredentialsSummary(params: {
   };
 }
 
-function resolveRoute(method: string, path: string): ManagementRoute | null {
+function routeIsEnabled(route: ManagementRoute, locks?: GatewayFeatureLockState): boolean {
+  if (!locks) {
+    return true;
+  }
+  return isManagementRouteEnabled({
+    routeId: route.id,
+    ...(route.kind === "gateway" ? { gatewayMethod: route.gatewayMethod } : {}),
+    locks,
+  });
+}
+
+function resolveRoute(
+  method: string,
+  path: string,
+  locks?: GatewayFeatureLockState,
+): ManagementRoute | null {
   const normalizedMethod = method.toUpperCase();
   for (const route of MANAGEMENT_ROUTES) {
+    if (!routeIsEnabled(route, locks)) {
+      continue;
+    }
     if (route.path === path && route.method === normalizedMethod) {
       return route;
     }
@@ -368,8 +387,8 @@ function resolveRoute(method: string, path: string): ManagementRoute | null {
   return null;
 }
 
-function hasAnyRouteForPath(path: string): boolean {
-  return MANAGEMENT_ROUTES.some((route) => route.path === path);
+function hasAnyRouteForPath(path: string, locks?: GatewayFeatureLockState): boolean {
+  return MANAGEMENT_ROUTES.some((route) => route.path === path && routeIsEnabled(route, locks));
 }
 
 async function parseRouteBody(
@@ -537,6 +556,7 @@ export async function handleManagementHttpRequest(
     rateLimiter?: AuthRateLimiter;
     invokeGatewayMethod: GatewayManagementMethodInvoker;
     hostLifecycle: HostManagerLifecycleAdapter;
+    featureLocks?: GatewayFeatureLockState;
   },
 ): Promise<boolean> {
   const requestPath = normalizeRequestPath(req);
@@ -550,11 +570,12 @@ export async function handleManagementHttpRequest(
 
   const method = (req.method ?? "GET").toUpperCase();
   if (requestPath === MANAGEMENT_API_PREFIX && method === "GET") {
+    const routes = MANAGEMENT_ROUTES.filter((route) => routeIsEnabled(route, opts.featureLocks));
     sendJson(res, 200, {
       ok: true,
       result: {
         prefix: MANAGEMENT_API_PREFIX,
-        routes: MANAGEMENT_ROUTES.map((route) => ({
+        routes: routes.map((route) => ({
           id: route.id,
           method: route.method,
           path: route.path,
@@ -643,9 +664,9 @@ export async function handleManagementHttpRequest(
     return true;
   }
 
-  const route = resolveRoute(method, requestPath);
+  const route = resolveRoute(method, requestPath, opts.featureLocks);
   if (!route) {
-    if (hasAnyRouteForPath(requestPath)) {
+    if (hasAnyRouteForPath(requestPath, opts.featureLocks)) {
       sendJson(res, 405, {
         ok: false,
         error: {
