@@ -1,6 +1,7 @@
 import { type ChildProcessWithoutNullStreams, execSync, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -145,10 +146,14 @@ export type OllamaGatewayInstance = {
 /**
  * Spawn a real gateway child process configured to use a local Ollama provider.
  * The caller must pass a discovered model from `discoverOllamaModel()`.
- * Waits until the gateway TCP port is open before resolving.
+ * Optional `extraConfig` is merged into the gateway config (e.g. for clawify custom tools).
+ * Waits until the gateway is ready before resolving.
  * Cleans up on failure.
  */
-export async function spawnOllamaGatewayInstance(model: OllamaModel): Promise<OllamaGatewayInstance> {
+export async function spawnOllamaGatewayInstance(
+  model: OllamaModel,
+  extraConfig?: Record<string, unknown>,
+): Promise<OllamaGatewayInstance> {
   const port = await getFreePort();
   const gatewayToken = `ollama-gateway-${randomUUID()}`;
 
@@ -195,6 +200,7 @@ export async function spawnOllamaGatewayInstance(model: OllamaModel): Promise<Ol
         },
       },
     },
+    ...extraConfig,
   };
 
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf8");
@@ -424,4 +430,45 @@ export async function waitForAssistantReply(
   }
 
   throw new Error(`timeout (${timeoutMs}ms) waiting for assistant reply in ${sessionFile}`);
+}
+
+// ---------------------------------------------------------------------------
+// Custom tool test server
+// ---------------------------------------------------------------------------
+
+export type ToolServer = {
+  port: number;
+  url: string;
+  server: http.Server;
+  close: () => Promise<void>;
+};
+
+/**
+ * Start a tiny HTTP server that responds to POST requests with a fixed body.
+ * Useful for testing custom tool registration — the LLM calls the tool,
+ * hits this server, and gets the response body back.
+ */
+export async function startToolServer(responseBody: string): Promise<ToolServer> {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.end(responseBody);
+  });
+
+  const port = await new Promise<number>((resolve, reject) => {
+    server.listen(0, "127.0.0.1", () => {
+      const addr = server.address();
+      if (!addr || typeof addr === "string") {
+        reject(new Error("failed to bind tool server"));
+        return;
+      }
+      resolve(addr.port);
+    });
+  });
+
+  return {
+    port,
+    url: `http://127.0.0.1:${port}`,
+    server,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
 }

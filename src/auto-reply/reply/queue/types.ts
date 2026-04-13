@@ -83,6 +83,8 @@ export type FollowupRun = {
     enforceFinalTag?: boolean;
     skipProviderRuntimeHints?: boolean;
     silentExpected?: boolean;
+    /** Clawify instance id for resolving custom tools. */
+    clawifyInstanceId?: string;
   };
 };
 

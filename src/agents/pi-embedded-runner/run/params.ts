@@ -135,4 +135,6 @@ export type RunEmbeddedPiAgentParams = {
    * exit promptly after emitting the final JSON result.
    */
   cleanupBundleMcpOnRunEnd?: boolean;
+  /** Clawify instance id for resolving custom tools. */
+  clawifyInstanceId?: string;
 };

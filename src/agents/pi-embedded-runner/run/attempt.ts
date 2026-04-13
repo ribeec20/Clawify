@@ -531,6 +531,19 @@ export async function runEmbeddedAttempt(
           }
           return allTools;
         })();
+
+    // Inject clawify custom tools when an instanceId is set on the session.
+    if (params.clawifyInstanceId && params.config && toolsRaw.length > 0) {
+      const { resolveCustomToolsFromConfig } = await import("../../tools/custom-tool-factory.js");
+      const { tools: customTools } = resolveCustomToolsFromConfig(params.config, params.clawifyInstanceId);
+      const coreNames = new Set(toolsRaw.map((t) => t.name));
+      for (const tool of customTools) {
+        if (!coreNames.has(tool.name)) {
+          toolsRaw.push(tool);
+        }
+      }
+    }
+
     const toolsEnabled = supportsModelTools(params.model);
     const tools = normalizeProviderToolSchemas({
       tools: toolsEnabled ? toolsRaw : [],

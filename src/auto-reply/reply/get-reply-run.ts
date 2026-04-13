@@ -624,6 +624,7 @@ export async function runPreparedReply(
       })
         ? { enforceFinalTag: true }
         : {}),
+      clawifyInstanceId: preparedSessionState.sessionEntry?.clawifyInstanceId,
     },
   };
 

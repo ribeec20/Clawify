@@ -1,12 +1,15 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type OllamaGatewayInstance,
   type OllamaModel,
+  type ToolServer,
   discoverOllamaModel,
   managementPost,
   spawnOllamaGatewayInstance,
+  startToolServer,
   stopOllamaGatewayInstance,
   waitForAssistantReply,
 } from "./helpers/ollama-e2e.js";
@@ -27,13 +30,13 @@ describe.runIf(ollamaModel !== null)("SDK file tools e2e with Ollama", () => {
     if (gw) await stopOllamaGatewayInstance(gw);
   }, 15_000);
 
-  /**
-   * Create a session, send a message, wait for the assistant reply by polling
-   * the session transcript file on disk.
-   */
-  async function sendAndWait(message: string): Promise<string> {
+  async function sendAndWait(
+    message: string,
+    opts?: { instanceId?: string },
+  ): Promise<string> {
     const createRes = await managementPost(gw, "/v1/management/sessions/create", {
       model: `ollama/${gw.model.id}`,
+      ...(opts?.instanceId ? { instanceId: opts.instanceId } : {}),
     });
     expect(createRes.status).toBe(200);
     const result = (createRes.json as { result?: { key?: string; entry?: { sessionFile?: string } } }).result;
@@ -48,7 +51,6 @@ describe.runIf(ollamaModel !== null)("SDK file tools e2e with Ollama", () => {
     });
     expect(sendRes.status).toBe(200);
 
-    // Poll the transcript file for the assistant's reply
     return waitForAssistantReply(sessionFile!, RUN_TIMEOUT_MS);
   }
 
@@ -104,5 +106,64 @@ describe.runIf(ollamaModel !== null)("SDK file tools e2e with Ollama", () => {
     expect(content).toContain("version=2.0.0");
     expect(content).toContain("name=TestProject");
     expect(content).toContain("status=draft");
+  }, RUN_TIMEOUT_MS + 30_000);
+});
+
+describe.runIf(ollamaModel !== null)("Custom tool registration e2e with Ollama", () => {
+  const SECRET_CODE = `VAULT-${randomUUID().slice(0, 8).toUpperCase()}`;
+  let gw: OllamaGatewayInstance;
+  let toolSrv: ToolServer;
+
+  beforeAll(async () => {
+    toolSrv = await startToolServer(SECRET_CODE);
+
+    gw = await spawnOllamaGatewayInstance(ollamaModel!, {
+      clawify: {
+        defaultInstanceId: "test-app",
+        instances: {
+          "test-app": {
+            customTools: {
+              get_secret_vault_code: {
+                name: "get_secret_vault_code",
+                description:
+                  "Retrieves the secret vault code. Call this tool to get the code. " +
+                  "Takes no meaningful input parameters. Returns the secret code as plain text.",
+                parameters: { type: "object", properties: {} },
+                target: { url: toolSrv.url },
+              },
+            },
+          },
+        },
+      },
+    });
+  }, 90_000);
+
+  afterAll(async () => {
+    if (gw) await stopOllamaGatewayInstance(gw);
+    if (toolSrv) await toolSrv.close();
+  }, 15_000);
+
+  it("calls a registered custom tool and returns its result", async () => {
+    const createRes = await managementPost(gw, "/v1/management/sessions/create", {
+      model: `ollama/${gw.model.id}`,
+      instanceId: "test-app",
+    });
+    expect(createRes.status).toBe(200);
+    const result = (createRes.json as { result?: { key?: string; entry?: { sessionFile?: string } } }).result;
+    const sessionKey = result?.key;
+    const sessionFile = result?.entry?.sessionFile;
+    expect(sessionKey).toBeDefined();
+    expect(sessionFile).toBeDefined();
+
+    const sendRes = await managementPost(gw, "/v1/management/sessions/send", {
+      key: sessionKey,
+      message:
+        "Use the get_secret_vault_code tool to retrieve the secret vault code, " +
+        "then tell me what the code is. Repeat the exact code in your response.",
+    });
+    expect(sendRes.status).toBe(200);
+
+    const response = await waitForAssistantReply(sessionFile!, RUN_TIMEOUT_MS);
+    expect(response).toContain(SECRET_CODE);
   }, RUN_TIMEOUT_MS + 30_000);
 });

@@ -295,11 +295,37 @@ const ClawifyUserConfigSchema = z
   })
   .strict();
 
+const ClawifyCustomToolTargetSchema = z
+  .object({
+    url: z.string(),
+    method: z.enum(["POST", "PUT", "PATCH"]).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    auth: z
+      .union([
+        z.object({ type: z.literal("bearer"), token: z.string() }),
+        z.object({ type: z.literal("header"), name: z.string(), value: z.string() }),
+      ])
+      .optional(),
+    timeoutMs: z.number().optional(),
+  })
+  .strict();
+
+const ClawifyCustomToolDefinitionSchema = z
+  .object({
+    name: z.string(),
+    description: z.string(),
+    parameters: z.record(z.string(), z.unknown()),
+    target: ClawifyCustomToolTargetSchema,
+    removable: z.boolean().optional(),
+  })
+  .strict();
+
 const ClawifyInstanceConfigSchema = z
   .object({
     tools: ClawifyScopedToolPolicySchema.optional(),
     skills: ClawifyScopedSkillsSchema.optional(),
     mcp: McpConfigObjectSchema.optional(),
+    customTools: z.record(z.string(), ClawifyCustomToolDefinitionSchema).optional(),
     userPolicy: ClawifyUserPolicySchema.optional(),
     users: z.record(z.string(), ClawifyUserConfigSchema).optional(),
   })
